@@ -1,0 +1,16 @@
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VCS
+.git/
+.gitignore
+
+# OS files
+.DS_Store
