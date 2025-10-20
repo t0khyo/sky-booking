@@ -33,6 +33,24 @@ spring:
       web:
         exposure:
           include: health,info
+#  webflux:
+#    base-path: /api
+#    webclient:
+#          max-in-memory-size: 10MB
 
 keycloak:
   enabled: false
+
+amadeus:
+  api:
+    baseUrl: ${AMADEUS_API_URL:https://test.api.amadeus.com}
+    endpoints:
+      authenticate: ${AMADEUS_AUTHENTICATE_ENDPOINT:/v1/security/oauth2/token}
+      search-flights: ${AMADEUS_SEARCH_ENDPOINT:/v2/shopping/flight-offers}
+      offer-price: ${AMADEUS_OFFER_PRICE_ENDPOINT:/v1/shopping/flight-offers/pricing}
+      create-order: ${AMADEUS_CREATE_ORDER_ENDPOINT:/v1/booking/flight-orders}
+
+  client:
+    id: ${AMADEUS_CLIENT_ID:VLc0ON0rBnBDIl46RCytIIvHZTgGVPGo}
+    secret: ${AMADEUS_CLIENT_SECRET:7s6KNXDAgUAoGpzw}
+    grant-type: ${AMADEUS_GRANT_TYPE:client_credentials}

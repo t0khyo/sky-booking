@@ -1,4 +1,4 @@
-package com.skybooking.flightsearch.dto;
+package com.skybooking.externalbookingintegration.amdeus.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;

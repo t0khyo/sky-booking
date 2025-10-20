@@ -70,7 +70,8 @@ public class ApiIntegration {
             throw e;
         }
     }
-    public <REQ, RES> RES post(String baseUrl, String apiUrl, REQ requestBody, Class<RES> responseType) {
+
+    public <REQ, RES> RES post(String baseUrl, String apiUrl,Map<String, String> headers, REQ requestBody, Class<RES> responseType) {
         try {
             log.info(requestBody.toString());
             return webClientBuilder
@@ -79,6 +80,7 @@ public class ApiIntegration {
                     .post()
                     .uri(apiUrl)
                     .contentType(MediaType.APPLICATION_JSON)
+                    .headers(httpHeaders -> headers.forEach(httpHeaders::add))
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(responseType)

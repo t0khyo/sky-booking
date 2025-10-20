@@ -1,0 +1,10 @@
+package com.skybooking.externalbookingintegration.amdeus.dto.common;
+
+import lombok.Data;
+
+@Data
+class BaggageAllowanceDto {
+    private Integer quantity;
+    private Integer weight;
+    private String weightUnit;
+}
