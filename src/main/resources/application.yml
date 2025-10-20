@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: SkyBooking
+  server:
+    port: ${SERVER_PORT:8080}
+
+  # Database (PostgreSQL)
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/skybooking}
+    username: ${SPRING_DATASOURCE_USERNAME:skybooking}
+    password: ${SPRING_DATASOURCE_PASSWORD:skybooking}
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    open-in-view: false
+
+  # Redis
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+
+  # RabbitMQ
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+
+  # Actuator
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health,info
+
+keycloak:
+  enabled: false
