@@ -22,11 +22,11 @@ public class AmadeusAuthenticateApi {
     private LocalDateTime lastTokenTime;
 
     public String getAccessToken() {
-        lazyRefreshToken();
+        reloadRefreshToken();
         return accessToken;
     }
 
-    private void lazyRefreshToken() {
+    private void reloadRefreshToken() {
         if (!isTokenExpired()) {
             return;
         }
