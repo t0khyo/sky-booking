@@ -1,42 +1,40 @@
-#version: "3.9"
-
 services:
-#  app:
-#    build: .
-#    container_name: skybooking-app
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-#      redis:
-#        condition: service_healthy
-#      rabbitmq:
-#        condition: service_started
-#    environment:
-#      SERVER_PORT: 8080
-#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skybooking
-#      SPRING_DATASOURCE_USERNAME: skybooking
-#      SPRING_DATASOURCE_PASSWORD: skybooking
-#      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-#      SPRING_REDIS_HOST: redis
-#      SPRING_REDIS_PORT: 6379
-#      SPRING_RABBITMQ_HOST: rabbitmq
-#      SPRING_RABBITMQ_PORT: 5672
-#    networks:
-#      - backend
-#    expose:
-#      - "8080"
-#
-#  nginx:
-#    image: nginx:alpine
-#    container_name: skybooking-nginx
-#    depends_on:
-#      - app
-#    ports:
-#      - "80:80"
-#    volumes:
-#      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-#    networks:
-#      - backend
+  app:
+    build: .
+    container_name: skybooking-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skybooking
+      SPRING_DATASOURCE_USERNAME: skybooking
+      SPRING_DATASOURCE_PASSWORD: skybooking
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    networks:
+      - sky-booking-network
+    expose:
+      - "8080"
+
+  nginx:
+    image: nginx:alpine
+    container_name: skybooking-nginx
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - sky-booking-network
 
   postgres:
     image: postgres:16
@@ -46,30 +44,30 @@ services:
       POSTGRES_USER: skybooking
       POSTGRES_PASSWORD: skybooking
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     networks:
-      - backend
+      - sky-booking-network
 
   redis:
     image: redis:7-alpine
     container_name: skybooking-redis
-    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
+    command: [ "redis-server", "--save", "20", "1", "--loglevel", "warning" ]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
-      - backend
+      - sky-booking-network
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -81,7 +79,7 @@ services:
       - "5672:5672"   # AMQP
       - "15672:15672" # Management UI
     networks:
-      - backend
+      - sky-booking-network
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
@@ -89,15 +87,15 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-    command: ["start-dev", "--http-port=8080"]
+    command: [ "start-dev", "--http-port=8080" ]
     ports:
       - "8081:8080"
     networks:
-      - backend
+      - sky-booking-network
 
 volumes:
   db-data:
 
 networks:
-  backend:
+  sky-booking-network:
     driver: bridge
