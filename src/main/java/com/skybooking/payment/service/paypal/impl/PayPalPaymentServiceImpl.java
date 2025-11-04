@@ -1,4 +1,4 @@
-package com.skybooking.payment.service.impl;
+package com.skybooking.payment.service.paypal.impl;
 
 import com.paypal.sdk.PaypalServerSdkClient;
 import com.paypal.sdk.controllers.OrdersController;
@@ -17,7 +17,7 @@ import com.skybooking.payment.dto.response.LinkResponse;
 import com.skybooking.payment.dto.response.OrderResponse;
 import com.skybooking.payment.exception.PayPalException;
 import com.skybooking.payment.exception.PaymentException;
-import com.skybooking.payment.service.PaymentService;
+import com.skybooking.payment.service.paypal.PayPalPaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,10 +38,9 @@ import static com.skybooking.payment.constants.PaymentConstants.DEFAULT_CURRENCY
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class PaymentServiceImpl implements PaymentService {
+public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
     private final PaypalServerSdkClient paypalClient;
-    private final PaypalConfigs payPalConfig;
 
     private static final int ASYNC_TIMEOUT_SECONDS = 30;
 

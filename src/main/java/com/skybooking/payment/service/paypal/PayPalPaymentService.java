@@ -1,4 +1,4 @@
-package com.skybooking.payment.service;
+package com.skybooking.payment.service.paypal;
 
 
 import com.skybooking.payment.dto.request.AuthorizePaymentRequest;
@@ -8,7 +8,7 @@ import com.skybooking.payment.dto.response.AuthorizationResponse;
 import com.skybooking.payment.dto.response.CaptureResponse;
 import com.skybooking.payment.dto.response.OrderResponse;
 
-public interface PaymentService {
+public interface PayPalPaymentService {
 
 
     OrderResponse createOrder(CreateOrderRequest request);

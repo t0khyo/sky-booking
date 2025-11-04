@@ -3,7 +3,7 @@ package com.skybooking.payment.constants;
 
 public final class PaymentConstants {
 
-    // PayPal Prefer Header
+    // PayPal Constants
     public static final String PREFER_MINIMAL = "return=minimal";
     public static final String PREFER_REPRESENTATION = "return=representation";
 
