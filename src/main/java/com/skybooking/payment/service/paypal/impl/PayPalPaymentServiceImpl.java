@@ -317,15 +317,19 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
                 .currency(request.getCurrency())
                 .description(request.getDescription())
                 .approvalUrl(approvalUrl)
-                .createdAt(LocalDateTime.parse(order.getCreateTime()))
+                .createdAt(getOrderTime(order.getCreateTime()))
                 .build();
+    }
+
+    private static LocalDateTime getOrderTime(String createdAt) {
+        return ZonedDateTime.parse(createdAt).toLocalDateTime();
     }
 
 
     private static String getApprovalUrl(Order order) {
         return order.getLinks().stream()
+                .filter(link -> "approve".equalsIgnoreCase(link.getRel()))
                 .map(LinkDescription::getHref)
-                .filter("approve"::equalsIgnoreCase)
                 .findFirst()
                 .orElse("");
     }
