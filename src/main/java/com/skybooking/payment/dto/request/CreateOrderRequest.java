@@ -1,6 +1,7 @@
 package com.skybooking.payment.dto.request;
 
 import com.skybooking.payment.constants.PaymentConstants;
+import com.skybooking.payment.constants.PaymentReferenceType;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,11 +15,15 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateOrderRequest {
+    @Size(max = PaymentConstants.MAX_REFERENCE_ID_LENGTH)
+    private String referenceId;
+
+    @NotNull(message = PaymentConstants.VALIDATION_REFERENCE_REQUIRED)
+    private PaymentReferenceType referenceType;
 
     @NotNull(message = PaymentConstants.VALIDATION_AMOUNT_REQUIRED)
     @Positive(message = PaymentConstants.VALIDATION_AMOUNT_POSITIVE)
     @DecimalMin(value = "0.01", message = "Amount must be at least 0.01")
-    @Digits(integer = 10, fraction = 2, message = "Amount must have maximum 10 integer digits and 2 decimal places")
     private BigDecimal amount;
 
     @NotBlank(message = PaymentConstants.VALIDATION_CURRENCY_REQUIRED)
@@ -33,7 +38,4 @@ public class CreateOrderRequest {
 
     @Pattern(regexp = "^https?://.*", message = "Cancel URL must be a valid HTTP/HTTPS URL")
     private String cancelUrl;
-
-    @Size(max = PaymentConstants.MAX_REFERENCE_ID_LENGTH)
-    private String referenceId;
 }

@@ -31,7 +31,7 @@ public class PaymentController {
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
         log.info("Received request to create order for amount: {} {}",
                 request.getAmount(), request.getCurrency());
-
+        //TODO check paypal payment method is active first
         OrderResponse response = payPalPaymentService.createOrder(request);
 
         log.info("Order created successfully with ID: {}", response.getOrderId());
@@ -44,7 +44,7 @@ public class PaymentController {
             @Valid @RequestBody AuthorizePaymentRequest request) {
 
         log.info("Received request to authorize payment for order: {}", request.getOrderId());
-
+        //TODO check paypal payment method is active first
         AuthorizationResponse response = payPalPaymentService.authorizePayment(request);
 
         log.info("Payment authorized successfully with ID: {}", response.getAuthorizationId());
@@ -57,7 +57,7 @@ public class PaymentController {
             @Valid @RequestBody CapturePaymentRequest request) {
 
         log.info("Received request to capture payment for authorization: {}", request.getAuthorizationId());
-
+        //TODO check paypal payment method is active first
         CaptureResponse response = payPalPaymentService.captureAuthorizedPayment(request);
 
         log.info("Payment captured successfully with ID: {}", response.getCaptureId());
@@ -68,7 +68,7 @@ public class PaymentController {
     @PostMapping("/paypal/void/{authorizationId}")
     public ResponseEntity<AuthorizationResponse> voidPayment(@PathVariable String authorizationId) {
         log.info("Received request to void authorization: {}", authorizationId);
-
+        //TODO check paypal payment method is active first
         AuthorizationResponse response = payPalPaymentService.voidAuthorizedPayment(authorizationId);
 
         log.info("Authorization voided successfully: {}", authorizationId);

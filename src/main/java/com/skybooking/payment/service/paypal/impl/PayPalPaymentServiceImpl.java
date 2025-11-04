@@ -3,19 +3,15 @@ package com.skybooking.payment.service.paypal.impl;
 import com.paypal.sdk.PaypalServerSdkClient;
 import com.paypal.sdk.controllers.OrdersController;
 import com.paypal.sdk.controllers.PaymentsController;
-import com.paypal.sdk.exceptions.ApiException;
 import com.paypal.sdk.http.response.ApiResponse;
 import com.paypal.sdk.models.*;
-import com.skybooking.payment.configs.PaypalConfigs;
 import com.skybooking.payment.constants.PaymentConstants;
 import com.skybooking.payment.dto.request.AuthorizePaymentRequest;
 import com.skybooking.payment.dto.request.CapturePaymentRequest;
 import com.skybooking.payment.dto.request.CreateOrderRequest;
 import com.skybooking.payment.dto.response.AuthorizationResponse;
 import com.skybooking.payment.dto.response.CaptureResponse;
-import com.skybooking.payment.dto.response.LinkResponse;
 import com.skybooking.payment.dto.response.OrderResponse;
-import com.skybooking.payment.exception.PayPalException;
 import com.skybooking.payment.exception.PaymentException;
 import com.skybooking.payment.service.paypal.PayPalPaymentService;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import static com.skybooking.payment.constants.PaymentConstants.DEFAULT_CURRENCY;
 
@@ -63,14 +55,14 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             ApiResponse<Order> response = handleAsyncResponse(
                     futureResponse,
-                    "create order",
-                    ASYNC_TIMEOUT_SECONDS
+                    "create order"
             );
 
             Order order = response.getResult();
             log.info("PayPal order created successfully with ID: {}", order.getId());
 
-            //TODO Save transaction to database with status CREATED
+            //TODO create payment in database with status CREATED
+            //TODO Notify booking module to add paymentId to booking record
 
             return buildOrderResponse(order, request);
 
@@ -101,8 +93,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             ApiResponse<OrderAuthorizeResponse> response = handleAsyncResponse(
                     futureResponse,
-                    "authorize payment",
-                    ASYNC_TIMEOUT_SECONDS
+                    "authorize payment"
             );
 
             OrderAuthorizeResponse orderAuthorizeResponse = response.getResult();
@@ -140,19 +131,14 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             CaptureRequest captureRequest = buildCaptureRequestBody(request);
 
-            CaptureAuthorizedPaymentInput input = new CaptureAuthorizedPaymentInput.Builder()
-                    .authorizationId(request.getAuthorizationId())
-                    .prefer(PaymentConstants.PREFER_REPRESENTATION)
-                    .body(captureRequest)
-                    .build();
+            CaptureAuthorizedPaymentInput input = getCaptureAuthorizedPaymentInput(request, captureRequest);
 
             CompletableFuture<ApiResponse<CapturedPayment>> futureResponse =
                     paymentsController.captureAuthorizedPaymentAsync(input);
 
             ApiResponse<CapturedPayment> response = handleAsyncResponse(
                     futureResponse,
-                    "capture payment",
-                    ASYNC_TIMEOUT_SECONDS
+                    "capture payment"
             );
 
             CapturedPayment capturedPayment = response.getResult();
@@ -175,6 +161,14 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
         }
     }
 
+    private static CaptureAuthorizedPaymentInput getCaptureAuthorizedPaymentInput(CapturePaymentRequest request, CaptureRequest captureRequest) {
+        return new CaptureAuthorizedPaymentInput.Builder()
+                .authorizationId(request.getAuthorizationId())
+                .prefer(PaymentConstants.PREFER_REPRESENTATION)
+                .body(captureRequest)
+                .build();
+    }
+
     @Override
     @Transactional
     public AuthorizationResponse voidAuthorizedPayment(String authorizationId) {
@@ -194,8 +188,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             ApiResponse<PaymentAuthorization> response = handleAsyncResponse(
                     futureResponse,
-                    "void payment",
-                    ASYNC_TIMEOUT_SECONDS
+                    "void payment"
             );
 
             log.info("Authorization voided successfully: {}", authorizationId);
@@ -219,11 +212,10 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
     private <T> T handleAsyncResponse(
             CompletableFuture<T> futureResponse,
-            String operationName,
-            int timeoutSeconds) {
+            String operationName) {
 
         try {
-            T response = futureResponse.get(timeoutSeconds, TimeUnit.SECONDS);
+            T response = futureResponse.get(PayPalPaymentServiceImpl.ASYNC_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             log.debug("Async {} operation completed successfully", operationName);
             return response;
 
@@ -232,31 +224,8 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
             log.error(errorMsg, e);
             throw new PaymentException(errorMsg, e);
 
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-
-            if (cause instanceof ApiException) {
-                ApiException apiException = (ApiException) cause;
-                String errorMsg = String.format(
-                        "PayPal API error during %s: %s",
-                        operationName,
-                        apiException.getMessage()
-                );
-                log.error("{} - Status code: {}", errorMsg, apiException.getResponseCode(), apiException);
-                throw new PayPalException(
-                        errorMsg,
-                        String.valueOf(apiException.getResponseCode()),
-                        apiException
-                );
-            } else {
-                String errorMsg = String.format("Execution error during %s", operationName);
-                log.error(errorMsg, cause);
-                throw new PaymentException(errorMsg, cause);
-            }
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            String errorMsg = String.format("Thread interrupted during %s", operationName);
+        } catch (Exception e) {
+            String errorMsg = String.format("Exception during %s", operationName);
             log.error(errorMsg, e);
             throw new PaymentException(errorMsg, e);
         }
@@ -274,7 +243,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
                 .description(request.getDescription())
                 .build();
 
-        OrderApplicationContext applicationContext = null;
+        OrderApplicationContext applicationContext = null;  //TODO replace OrderApplicationContext with experience_context
         if (request.getReturnUrl() != null || request.getCancelUrl() != null) {
             applicationContext = new OrderApplicationContext.Builder()
                     .returnUrl(request.getReturnUrl())
@@ -335,27 +304,30 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
 
     private OrderResponse buildOrderResponse(Order order, CreateOrderRequest request) {
-        List<LinkResponse> links = new ArrayList<>();
+        String approvalUrl = "";
 
         if (order.getLinks() != null) {
-            links = order.getLinks().stream()
-                    .map(link -> LinkResponse.builder()
-                            .href(link.getHref())
-                            .rel(link.getRel())
-                            .method(link.getMethod() != null ? link.getMethod().toString() : null)
-                            .build())
-                    .collect(Collectors.toList());
+            approvalUrl = getApprovalUrl(order);
         }
 
         return OrderResponse.builder()
                 .orderId(order.getId())
-                .status(order.getStatus().toString())
+                .status(order.getStatus().toString()) //TODO replace with our status
                 .amount(request.getAmount())
                 .currency(request.getCurrency())
                 .description(request.getDescription())
-                .links(links)
-                .createdAt(LocalDateTime.now())
+                .approvalUrl(approvalUrl)
+                .createdAt(LocalDateTime.parse(order.getCreateTime()))
                 .build();
+    }
+
+
+    private static String getApprovalUrl(Order order) {
+        return order.getLinks().stream()
+                .map(LinkDescription::getHref)
+                .filter("approve"::equalsIgnoreCase)
+                .findFirst()
+                .orElse("");
     }
 
     private AuthorizationResponse buildAuthorizationResponse(

@@ -25,6 +25,7 @@ public final class PaymentConstants {
     public static final String VALIDATION_ORDER_ID_REQUIRED = "Order ID is required";
     public static final String VALIDATION_AUTHORIZATION_ID_REQUIRED = "Authorization ID is required";
     public static final String VALIDATION_DESCRIPTION_MAX = "Description cannot exceed 127 characters";
+    public static final String VALIDATION_REFERENCE_REQUIRED = "Reference type is required";
 
     // Transaction Limits
     public static final int MAX_DESCRIPTION_LENGTH = 127;
