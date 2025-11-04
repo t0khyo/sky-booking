@@ -5,10 +5,12 @@ import com.skybooking.externalbookingintegration.amdeus.dto.common.FlightOfferDt
 import com.skybooking.externalbookingintegration.amdeus.dto.common.MetaDto;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Data
-public class AmadeusFlightOfferResponse {
+public class AmadeusFlightOfferResponse implements Serializable {
+    private static final long serialVersionUID = 1L;
     private MetaDto meta;
     private List<FlightOfferDto> data;
     private DictionariesDto dictionaries;

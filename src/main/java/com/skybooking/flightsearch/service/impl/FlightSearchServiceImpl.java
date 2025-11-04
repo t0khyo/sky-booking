@@ -2,6 +2,7 @@ package com.skybooking.flightsearch.service.impl;
 
 import com.skybooking.externalbookingintegration.amdeus.AmadeusFlightOffersPriceApi;
 import com.skybooking.externalbookingintegration.amdeus.dto.request.AmadeusFlightOffersPricingRequest;
+import com.skybooking.externalbookingintegration.amdeus.dto.request.AmadeusFlightSearchRequest;
 import com.skybooking.externalbookingintegration.amdeus.dto.response.AmadeusFlightOfferResponse;
 import com.skybooking.externalbookingintegration.amdeus.AmadeusFlightSearchApi;
 import com.skybooking.flightsearch.service.FlightSearchService;
@@ -21,7 +22,14 @@ public class FlightSearchServiceImpl implements FlightSearchService {
 
     @Override
     public AmadeusFlightOfferResponse getFlights(String originLocationCode, String destinationLocationCode, LocalDate departureDate, Integer adults, Integer children) {
-        return amadeusFlightSearchApi.getFlightSearch(originLocationCode, destinationLocationCode, departureDate, adults, children);
+        AmadeusFlightSearchRequest searchRequest = new AmadeusFlightSearchRequest(
+                originLocationCode,
+                destinationLocationCode,
+                departureDate,
+                adults,
+                children
+        );
+        return amadeusFlightSearchApi.getFlightSearch(searchRequest);
     }
 
     @Override

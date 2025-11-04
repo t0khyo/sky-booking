@@ -2,8 +2,11 @@ package com.skybooking.externalbookingintegration.amdeus.dto.common;
 
 import lombok.Data;
 
+import java.io.Serializable;
+
 @Data
-public class SegmentDto {
+public class SegmentDto implements Serializable {
+    private static final long serialVersionUID = 1L;
     private LocationDto departure;
     private LocationDto arrival;
     private String carrierCode;

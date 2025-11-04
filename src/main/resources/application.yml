@@ -21,11 +21,15 @@ spring:
         enabled: false
       host: ${SPRING_REDIS_HOST:localhost}
       port: ${SPRING_REDIS_PORT:6379}
+      database: ${SPRING_REDIS_DATABASE:0}
 
   # RabbitMQ
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:}
+    password: ${SPRING_RABBITMQ_PASSWORD:}
+
 
   # Actuator
   management:
@@ -51,6 +55,16 @@ amadeus:
       create-order: ${AMADEUS_CREATE_ORDER_ENDPOINT:/v1/booking/flight-orders}
 
   client:
-    id: ${AMADEUS_CLIENT_ID:VLc0ON0rBnBDIl46RCytIIvHZTgGVPGo}
-    secret: ${AMADEUS_CLIENT_SECRET:7s6KNXDAgUAoGpzw}
+    id: ${AMADEUS_CLIENT_ID:YNRC1OHCmVAJ8MxR1s7EPSGe5vAv3GEj}
+    secret: ${AMADEUS_CLIENT_SECRET:FcNrZIU6P9X2V8XM}
     grant-type: ${AMADEUS_GRANT_TYPE:client_credentials}
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

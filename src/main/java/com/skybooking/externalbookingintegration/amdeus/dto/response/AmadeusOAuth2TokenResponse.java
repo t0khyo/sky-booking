@@ -3,8 +3,11 @@ package com.skybooking.externalbookingintegration.amdeus.dto.response;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
+import java.io.Serializable;
+
 @Data
-public class AmadeusOAuth2TokenResponse {
+public class AmadeusOAuth2TokenResponse implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     private String type;
 
