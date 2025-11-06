@@ -16,6 +16,7 @@ import com.skybooking.payment.exception.PaymentException;
 import com.skybooking.payment.service.paypal.PayPalPaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
@@ -69,6 +70,8 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
         } catch (PaymentException e) {
             throw e;
         } catch (Exception e) {
+            //TODO create payment in database with status FAILED
+
             log.error("Unexpected error while creating order", e);
             throw new PaymentException(PaymentConstants.ERROR_ORDER_CREATION_FAILED, e);
         }
@@ -80,7 +83,8 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
         log.info("Authorizing payment for order: {}", request.getOrderId());
 
         try {
-            //TODO Verify transaction exists in the database
+            //TODO Verify payment exists in the database with orderId
+            //TODO update payment status to Approved
 
             OrdersController ordersController = paypalClient.getOrdersController();
 
@@ -98,19 +102,17 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             OrderAuthorizeResponse orderAuthorizeResponse = response.getResult();
 
-            PurchaseUnit purchaseUnit = orderAuthorizeResponse.getPurchaseUnits().get(0);
-            AuthorizationWithAdditionalData authorization =
-                    purchaseUnit.getPayments().getAuthorizations().get(0);
+            AuthorizationWithAdditionalData authorization = getAuthorization(orderAuthorizeResponse);
 
             log.info("Payment authorized successfully with ID: {}", authorization.getId());
 
-            //TODO Update transaction in DB with status AUTHORIZED
-            // Extract payer info from orderAuthorizeResponse.getPayer()
+            //TODO update payment status to Authorized
+            //TODO create transaction in DB with type AUTHORIZE and response status
 
             return buildAuthorizationResponse(authorization, orderAuthorizeResponse.getPayer());
 
         } catch (PaymentException e) {
-            // TODO: Update transaction with error if it exists
+            //TODO create transaction in DB with type AUTHORIZE and status Failed
             log.error("Error authorizing payment for order: {}", request.getOrderId(), e);
             throw e;
         } catch (Exception e) {
@@ -119,13 +121,19 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
         }
     }
 
+    private static AuthorizationWithAdditionalData getAuthorization(OrderAuthorizeResponse orderAuthorizeResponse) {
+        PurchaseUnit purchaseUnit = orderAuthorizeResponse.getPurchaseUnits().get(0);
+        AuthorizationWithAdditionalData authorizationWithAdditionalData = purchaseUnit.getPayments().getAuthorizations().get(0);
+        return authorizationWithAdditionalData;
+    }
+
     @Override
     @Transactional
     public CaptureResponse captureAuthorizedPayment(CapturePaymentRequest request) {
         log.info("Capturing authorized payment: {}", request.getAuthorizationId());
 
         try {
-            //TODO Verify transaction exists and is authorized
+            //TODO Verify payment exists in the database and authorized
 
             PaymentsController paymentsController = paypalClient.getPaymentsController();
 
@@ -144,7 +152,9 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
             CapturedPayment capturedPayment = response.getResult();
             log.info("Payment captured successfully with ID: {}", capturedPayment.getId());
 
-            //TODO Update transaction with status CAPTURED
+            //TODO Update payment with status CAPTURED
+            //TODO create transaction in DB with type Capture and response status
+
 
             return buildCaptureResponseFromCapturedPayment(
                     capturedPayment,
@@ -152,7 +162,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
             );
 
         } catch (PaymentException e) {
-            // TODO: Update transaction with error if it exists
+            // TODO: Update transaction with status Failed
             log.error("Error capturing payment for authorization: {}", request.getAuthorizationId(), e);
             throw e;
         } catch (Exception e) {
@@ -175,7 +185,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
         log.info("Voiding authorized payment: {}", authorizationId);
 
         try {
-            //TODO Verify transaction exists and is authorized
+            //TODO Verify payment exists in the database and authorized
 
             PaymentsController paymentsController = paypalClient.getPaymentsController();
 
@@ -193,14 +203,16 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             log.info("Authorization voided successfully: {}", authorizationId);
 
-            //TODO Update transaction with status VOIDED
+            //TODO Update payment with status Voided
+            //TODO create transaction in DB with type Void and response status
+
 
             return buildAuthorizationResponseFromPaymentAuthorization(
                     response.getResult()
             );
 
         } catch (PaymentException e) {
-            // TODO: Update transaction with error if it exists
+            // TODO: Update transaction with status Failed
             log.error("Error voiding authorization: {}", authorizationId, e);
             throw e;
         } catch (Exception e) {
@@ -312,17 +324,17 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
         return OrderResponse.builder()
                 .orderId(order.getId())
-                .status(order.getStatus().toString()) //TODO replace with our status
+                .status(order.getStatus().toString())
                 .amount(request.getAmount())
                 .currency(request.getCurrency())
                 .description(request.getDescription())
                 .approvalUrl(approvalUrl)
-                .createdAt(getOrderTime(order.getCreateTime()))
+                .createdAt(getLocalDateTime(order.getCreateTime()))
                 .build();
     }
 
-    private static LocalDateTime getOrderTime(String createdAt) {
-        return ZonedDateTime.parse(createdAt).toLocalDateTime();
+    private static LocalDateTime getLocalDateTime(String dateTime) {
+        return ZonedDateTime.parse(dateTime).toLocalDateTime();
     }
 
 
@@ -339,9 +351,8 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
             Payer payer) {
 
         LocalDateTime expiresAt = null;
-        if (authorization.getExpirationTime() != null) {
-            ZonedDateTime zonedDateTime = ZonedDateTime.parse(authorization.getExpirationTime());
-            expiresAt = zonedDateTime.toLocalDateTime();
+        if (authorization != null) {
+            expiresAt = getLocalDateTime(authorization.getExpirationTime());
         }
 
         String payerEmail = null;
@@ -355,7 +366,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
         return AuthorizationResponse.builder()
                 .authorizationId(authorization.getId())
                 .status(authorization.getStatus().toString())
-                .createdAt(LocalDateTime.now())
+                .createdAt(getLocalDateTime(authorization.getCreateTime()))
                 .expiresAt(expiresAt)
                 .payerEmail(payerEmail)
                 .payerName(payerName)
@@ -365,11 +376,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
     private AuthorizationResponse buildAuthorizationResponseFromPaymentAuthorization(
             PaymentAuthorization authorization) {
 
-        LocalDateTime expiresAt = null;
-        if (authorization.getExpirationTime() != null) {
-            ZonedDateTime zonedDateTime = ZonedDateTime.parse(authorization.getExpirationTime());
-            expiresAt = zonedDateTime.toLocalDateTime();
-        }
+        LocalDateTime expiresAt = getLocalDateTime(authorization.getExpirationTime());
 
         return AuthorizationResponse.builder()
                 .authorizationId(authorization.getId())

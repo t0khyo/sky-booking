@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CaptureResponse {
-    //Todo add paymentId
     private String captureId;
     private String authorizationId;
     private String status;

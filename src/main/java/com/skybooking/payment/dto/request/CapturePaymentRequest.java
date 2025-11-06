@@ -21,7 +21,6 @@ public class CapturePaymentRequest {
 
     @NotNull(message = "Capture amount is required")
     @Positive(message = "Capture amount must be positive")
-    @DecimalMin(value = "0.01", message = "Capture amount must be at least 0.01")
     private BigDecimal amount;
 
     @Pattern(regexp = "^[A-Z]{3}$", message = "Currency must be a valid 3-letter ISO code")

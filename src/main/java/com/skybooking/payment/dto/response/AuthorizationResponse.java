@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AuthorizationResponse {
-    //Todo add paymentId
     private String authorizationId;
     private String status;
     private LocalDateTime createdAt;
