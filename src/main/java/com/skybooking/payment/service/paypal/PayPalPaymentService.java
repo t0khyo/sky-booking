@@ -11,11 +11,11 @@ import com.skybooking.payment.dto.response.OrderResponse;
 public interface PayPalPaymentService {
 
 
-    OrderResponse createOrder(CreateOrderRequest request);
+    OrderResponse createOrder(CreateOrderRequest request, String idempotencyKey);
 
-    AuthorizationResponse authorizePayment(AuthorizePaymentRequest request);
+    AuthorizationResponse authorizePayment(AuthorizePaymentRequest request, String idempotencyKey);
 
-    CaptureResponse captureAuthorizedPayment(CapturePaymentRequest request);
+    CaptureResponse captureAuthorizedPayment(CapturePaymentRequest request, String idempotencyKey);
 
-    AuthorizationResponse voidAuthorizedPayment(String authorizationId);
+    AuthorizationResponse voidAuthorizedPayment(String authorizationId, String idempotencyKey);
 }

@@ -1,16 +1,14 @@
 # -------- Build stage --------
-FROM eclipse-temurin:17-jdk AS build
+FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 
 # Leverage Docker layer caching
-COPY mvnw .
-COPY .mvn .mvn
 COPY pom.xml .
-RUN ./mvnw -q -B -DskipTests dependency:go-offline
+RUN mvn -q -B -DskipTests dependency:go-offline
 
 # Copy sources and build
 COPY src src
-RUN ./mvnw -q -B -DskipTests package
+RUN mvn -q -B -DskipTests package
 
 # Find the re-packaged boot jar (single jar in target)
 RUN ls -la target && \

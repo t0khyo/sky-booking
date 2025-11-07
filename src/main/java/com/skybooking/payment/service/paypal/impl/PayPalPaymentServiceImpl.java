@@ -18,19 +18,26 @@ import com.skybooking.payment.dto.response.OrderResponse;
 import com.skybooking.payment.exception.PayPalException;
 import com.skybooking.payment.exception.PaymentException;
 import com.skybooking.payment.service.paypal.PayPalPaymentService;
+import com.skybooking.payment.model.PaymentModel;
+import com.skybooking.payment.constants.PaymentStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.skybooking.payment.constants.PaymentConstants.DEFAULT_CURRENCY;
@@ -41,15 +48,32 @@ import static com.skybooking.payment.constants.PaymentConstants.DEFAULT_CURRENCY
 public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
     private final PaypalServerSdkClient paypalClient;
+    private final com.skybooking.payment.repository.PaymentRepository paymentRepository;
 
     private static final int ASYNC_TIMEOUT_SECONDS = 30;
 
     @Override
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) {
+    public OrderResponse createOrder(CreateOrderRequest request, String idempotencyKey) {
         log.info("Creating PayPal order for amount: {} {}", request.getAmount(), request.getCurrency());
 
         try {
+            // Idempotency fast-path
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                var existingOpt = paymentRepository.findByIdempotencyKey(idempotencyKey);
+                if (existingOpt.isPresent() && existingOpt.get().getOrderId() != null) {
+                    var existing = existingOpt.get();
+                    log.info("Idempotency hit for createOrder; key={}", idempotencyKey);
+                    return OrderResponse.builder()
+                            .orderId(existing.getOrderId())
+                            .status(existing.getStatus() != null ? existing.getStatus().name() : null)
+                            .amount(existing.getAmount())
+                            .currency(existing.getCurrency())
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                }
+            }
+
             OrdersController ordersController = paypalClient.getOrdersController();
 
             OrderRequest orderRequest = buildOrderRequest(request);
@@ -70,7 +94,15 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
             Order order = response.getResult();
             log.info("PayPal order created successfully with ID: {}", order.getId());
 
-            //TODO Save transaction to database with status CREATED
+            // Persist basic record (CREATED)
+            PaymentModel entity = PaymentModel.builder()
+                    .orderId(order.getId())
+                    .status(com.skybooking.payment.constants.PaymentStatus.CREATED)
+                    .amount(request.getAmount())
+                    .currency(request.getCurrency() != null ? request.getCurrency() : DEFAULT_CURRENCY)
+                    .idempotencyKey(idempotencyKey)
+                    .build();
+            paymentRepository.save(entity);
 
             return buildOrderResponse(order, request);
 
@@ -84,11 +116,31 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
     @Override
     @Transactional
-    public AuthorizationResponse authorizePayment(AuthorizePaymentRequest request) {
+    public AuthorizationResponse authorizePayment(AuthorizePaymentRequest request, String idempotencyKey) {
         log.info("Authorizing payment for order: {}", request.getOrderId());
 
         try {
-            //TODO Verify transaction exists in the database
+            // Idempotency fast-path
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                var idem = paymentRepository.findByIdempotencyKey(idempotencyKey);
+                if (idem.isPresent() && idem.get().getAuthorizationId() != null) {
+                    log.info("Idempotency hit for authorize; key={}", idempotencyKey);
+                    var entity = idem.get();
+                    return AuthorizationResponse.builder()
+                            .authorizationId(entity.getAuthorizationId())
+                            .status(PaymentStatus.AUTHORIZED.name())
+                            .createdAt(LocalDateTime.now())
+                            .payerEmail(entity.getPayerEmail())
+                            .payerName(entity.getPayerName())
+                            .build();
+                }
+            }
+
+            // Verify transaction exists in the database
+            var paymentOpt = paymentRepository.findByOrderId(request.getOrderId());
+            if (paymentOpt.isEmpty()) {
+                throw new PaymentException("Order not found: " + request.getOrderId());
+            }
 
             OrdersController ordersController = paypalClient.getOrdersController();
 
@@ -113,8 +165,35 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             log.info("Payment authorized successfully with ID: {}", authorization.getId());
 
-            //TODO Update transaction in DB with status AUTHORIZED
-            // Extract payer info from orderAuthorizeResponse.getPayer()
+            // Persist AUTHORIZED state with payer info
+            try {
+                var paymentOpt2 = paymentRepository.findByOrderId(request.getOrderId());
+                if (paymentOpt2.isEmpty()) {
+                    throw new PaymentException("Order not found for authorization: " + request.getOrderId());
+                }
+                var payment = paymentOpt2.get();
+                // idempotency short-circuit: if already authorized
+                if (payment.getAuthorizationId() == null) {
+                    payment.setAuthorizationId(authorization.getId());
+                    payment.setStatus(PaymentStatus.AUTHORIZED);
+                    if (orderAuthorizeResponse.getPayer() != null) {
+                        Payer payer = orderAuthorizeResponse.getPayer();
+                        payment.setPayerEmail(payer.getEmailAddress());
+                        if (payer.getName() != null) {
+                            payment.setPayerName(buildPayerName(payer.getName()));
+                        }
+                    }
+                    // initialize remaining amount if not set
+                    if (payment.getRemainingAuthorizedAmount() == null) {
+                        payment.setRemainingAuthorizedAmount(payment.getAmount());
+                    }
+                    payment.setIdempotencyKey(idempotencyKey);
+                    paymentRepository.save(payment);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to persist AUTHORIZED state for order {}", request.getOrderId(), ex);
+                // optional: rethrow or continue returning response
+            }
 
             return buildAuthorizationResponse(authorization, orderAuthorizeResponse.getPayer());
 
@@ -130,11 +209,46 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
     @Override
     @Transactional
-    public CaptureResponse captureAuthorizedPayment(CapturePaymentRequest request) {
+    public CaptureResponse captureAuthorizedPayment(CapturePaymentRequest request, String idempotencyKey) {
         log.info("Capturing authorized payment: {}", request.getAuthorizationId());
 
         try {
-            //TODO Verify transaction exists and is authorized
+            // Idempotency fast-path
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                var idem = paymentRepository.findByIdempotencyKey(idempotencyKey);
+                if (idem.isPresent() && idem.get().getCaptureId() != null) {
+                    log.info("Idempotency hit for capture; key={}", idempotencyKey);
+                    var entity = idem.get();
+                    return CaptureResponse.builder()
+                            .captureId(entity.getCaptureId())
+                            .authorizationId(entity.getAuthorizationId())
+                            .status(entity.getStatus() != null ? entity.getStatus().name() : null)
+                            .amount(entity.getAmount())
+                            .currency(entity.getCurrency())
+                            .createdAt(LocalDateTime.now())
+                            .finalCapture(entity.getFinalCapture())
+                            .build();
+                }
+            }
+
+            // Verify authorization exists and is valid
+            var paymentOpt = paymentRepository.findByAuthorizationId(request.getAuthorizationId());
+            if (paymentOpt.isEmpty()) {
+                throw new PaymentException("Authorization not found: " + request.getAuthorizationId());
+            }
+            var payment = paymentOpt.get();
+            if (payment.getStatus() != PaymentStatus.AUTHORIZED) {
+                throw new PaymentException("Capture not allowed unless AUTHORIZED");
+            }
+            if (payment.getRemainingAuthorizedAmount() == null) {
+                throw new PaymentException("No remaining authorized amount recorded");
+            }
+            if (request.getAmount().compareTo(payment.getRemainingAuthorizedAmount()) > 0) {
+                throw new PaymentException("Capture amount exceeds remaining authorized amount");
+            }
+            if (request.getCurrency() != null && !request.getCurrency().equalsIgnoreCase(payment.getCurrency())) {
+                throw new PaymentException("Capture currency must match authorization currency");
+            }
 
             PaymentsController paymentsController = paypalClient.getPaymentsController();
 
@@ -158,7 +272,33 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
             CapturedPayment capturedPayment = response.getResult();
             log.info("Payment captured successfully with ID: {}", capturedPayment.getId());
 
-            //TODO Update transaction with status CAPTURED
+            // Persist CAPTURED state
+            try {
+                var currentOpt = paymentRepository.findByAuthorizationId(request.getAuthorizationId());
+                if (currentOpt.isEmpty()) {
+                    throw new PaymentException("Authorization missing during update");
+                }
+                var current = currentOpt.get();
+                if (current.getCaptureId() == null) {
+                    // Determine captured amount from PayPal result if available
+                    BigDecimal capturedAmount = request.getAmount();
+                    if (capturedPayment.getAmount() != null && capturedPayment.getAmount().getValue() != null) {
+                        try { capturedAmount = new BigDecimal(capturedPayment.getAmount().getValue()); } catch (NumberFormatException ignore) {}
+                    }
+                    BigDecimal newRemaining = current.getRemainingAuthorizedAmount().subtract(capturedAmount);
+                    current.setRemainingAuthorizedAmount(newRemaining);
+                    current.setCaptureId(capturedPayment.getId());
+                    boolean isFinal = Boolean.TRUE.equals(request.getFinalCapture()) || newRemaining.compareTo(BigDecimal.ZERO) <= 0;
+                    current.setFinalCapture(isFinal);
+                    if (isFinal) {
+                        current.setStatus(PaymentStatus.CAPTURED);
+                    }
+                    current.setIdempotencyKey(idempotencyKey);
+                    paymentRepository.save(current);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to persist CAPTURED state for authorization {}", request.getAuthorizationId(), ex);
+            }
 
             return buildCaptureResponseFromCapturedPayment(
                     capturedPayment,
@@ -177,11 +317,38 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
     @Override
     @Transactional
-    public AuthorizationResponse voidAuthorizedPayment(String authorizationId) {
+    public AuthorizationResponse voidAuthorizedPayment(String authorizationId, String idempotencyKey) {
         log.info("Voiding authorized payment: {}", authorizationId);
 
         try {
-            //TODO Verify transaction exists and is authorized
+            // Idempotency fast-path
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                var idem = paymentRepository.findByIdempotencyKey(idempotencyKey);
+                if (idem.isPresent() && idem.get().getStatus() == PaymentStatus.VOIDED) {
+                    log.info("Idempotency hit for void; key={}", idempotencyKey);
+                    var entity = idem.get();
+                    return AuthorizationResponse.builder()
+                            .authorizationId(entity.getAuthorizationId())
+                            .status(PaymentStatus.VOIDED.name())
+                            .createdAt(LocalDateTime.now())
+                            .payerEmail(entity.getPayerEmail())
+                            .payerName(entity.getPayerName())
+                            .build();
+                }
+            }
+
+            // Verify current state
+            var paymentOpt = paymentRepository.findByAuthorizationId(authorizationId);
+            if (paymentOpt.isEmpty()) {
+                throw new PaymentException("Authorization not found: " + authorizationId);
+            }
+            var payment = paymentOpt.get();
+            if (payment.getStatus() != PaymentStatus.AUTHORIZED) {
+                throw new PaymentException("Only AUTHORIZED payments can be voided");
+            }
+            if (payment.getCaptureId() != null) {
+                throw new PaymentException("Cannot void an authorization that has been captured");
+            }
 
             PaymentsController paymentsController = paypalClient.getPaymentsController();
 
@@ -200,7 +367,21 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
 
             log.info("Authorization voided successfully: {}", authorizationId);
 
-            //TODO Update transaction with status VOIDED
+            // Persist VOIDED state
+            try {
+                var currentOpt = paymentRepository.findByAuthorizationId(authorizationId);
+                if (currentOpt.isEmpty()) {
+                    throw new PaymentException("Authorization missing during update");
+                }
+                var current = currentOpt.get();
+                if (current.getStatus() != PaymentStatus.VOIDED) {
+                    current.setStatus(PaymentStatus.VOIDED);
+                    current.setIdempotencyKey(idempotencyKey);
+                    paymentRepository.save(current);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to persist VOIDED state for authorization {}", authorizationId, ex);
+            }
 
             return buildAuthorizationResponseFromPaymentAuthorization(
                     response.getResult()
