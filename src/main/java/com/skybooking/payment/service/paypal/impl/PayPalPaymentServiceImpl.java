@@ -69,7 +69,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
                             .status(existing.getStatus() != null ? existing.getStatus().name() : null)
                             .amount(existing.getAmount())
                             .currency(existing.getCurrency())
-                            .createdAt(LocalDateTime.now())
+                            .createdAt(existing.getCreatedAt())
                             .build();
                 }
             }
@@ -129,7 +129,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
                     return AuthorizationResponse.builder()
                             .authorizationId(entity.getAuthorizationId())
                             .status(PaymentStatus.AUTHORIZED.name())
-                            .createdAt(LocalDateTime.now())
+                            .createdAt(entity.getCreatedAt())
                             .payerEmail(entity.getPayerEmail())
                             .payerName(entity.getPayerName())
                             .build();
@@ -225,7 +225,7 @@ public class PayPalPaymentServiceImpl implements PayPalPaymentService {
                             .status(entity.getStatus() != null ? entity.getStatus().name() : null)
                             .amount(entity.getAmount())
                             .currency(entity.getCurrency())
-                            .createdAt(LocalDateTime.now())
+                            .createdAt(entity.getCreatedAt())
                             .finalCapture(entity.getFinalCapture())
                             .build();
                 }
