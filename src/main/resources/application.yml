@@ -6,7 +6,7 @@ spring:
 
   # Database (PostgreSQL)
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/skybooking}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5434/skybooking}
     username: ${SPRING_DATASOURCE_USERNAME:skybooking}
     password: ${SPRING_DATASOURCE_PASSWORD:skybooking}
   jpa:
@@ -33,13 +33,16 @@ spring:
       web:
         exposure:
           include: health,info
-#  webflux:
-#    base-path: /api
-#    webclient:
-#          max-in-memory-size: 10MB
+  #  webflux:
+  #    base-path: /api
+  #    webclient:
+  #          max-in-memory-size: 10MB
 
-keycloak:
-  enabled: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/sky-booking
 
 amadeus:
   api:
