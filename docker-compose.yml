@@ -19,6 +19,7 @@ services:
       SPRING_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
+      RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/sky-booking
     networks:
       - sky-booking-network
     expose:

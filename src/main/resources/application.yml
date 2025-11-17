@@ -42,7 +42,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8081/realms/sky-booking
+          issuer-uri: ${RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8081/realms/sky-booking}
 
 amadeus:
   api:
