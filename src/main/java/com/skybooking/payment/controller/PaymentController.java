@@ -28,11 +28,13 @@ public class PaymentController {
 
     
     @PostMapping("/paypal/orders")
-    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
+    public ResponseEntity<OrderResponse> createOrder(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody CreateOrderRequest request) {
         log.info("Received request to create order for amount: {} {}",
                 request.getAmount(), request.getCurrency());
 
-        OrderResponse response = payPalPaymentService.createOrder(request);
+        OrderResponse response = payPalPaymentService.createOrder(request, idempotencyKey);
 
         log.info("Order created successfully with ID: {}", response.getOrderId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -41,11 +43,12 @@ public class PaymentController {
     
     @PostMapping("/paypal/authorize")
     public ResponseEntity<AuthorizationResponse> authorizePayment(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody AuthorizePaymentRequest request) {
 
         log.info("Received request to authorize payment for order: {}", request.getOrderId());
 
-        AuthorizationResponse response = payPalPaymentService.authorizePayment(request);
+        AuthorizationResponse response = payPalPaymentService.authorizePayment(request, idempotencyKey);
 
         log.info("Payment authorized successfully with ID: {}", response.getAuthorizationId());
         return ResponseEntity.ok(response);
@@ -54,11 +57,12 @@ public class PaymentController {
    
     @PostMapping("/paypal/capturePayment")
     public ResponseEntity<CaptureResponse> capturePayment(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CapturePaymentRequest request) {
 
         log.info("Received request to capture payment for authorization: {}", request.getAuthorizationId());
 
-        CaptureResponse response = payPalPaymentService.captureAuthorizedPayment(request);
+        CaptureResponse response = payPalPaymentService.captureAuthorizedPayment(request, idempotencyKey);
 
         log.info("Payment captured successfully with ID: {}", response.getCaptureId());
         return ResponseEntity.ok(response);
@@ -66,10 +70,12 @@ public class PaymentController {
 
    
     @PostMapping("/paypal/void/{authorizationId}")
-    public ResponseEntity<AuthorizationResponse> voidPayment(@PathVariable String authorizationId) {
+    public ResponseEntity<AuthorizationResponse> voidPayment(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @PathVariable String authorizationId) {
         log.info("Received request to void authorization: {}", authorizationId);
 
-        AuthorizationResponse response = payPalPaymentService.voidAuthorizedPayment(authorizationId);
+        AuthorizationResponse response = payPalPaymentService.voidAuthorizedPayment(authorizationId, idempotencyKey);
 
         log.info("Authorization voided successfully: {}", authorizationId);
         return ResponseEntity.ok(response);
